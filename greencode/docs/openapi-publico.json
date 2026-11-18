@@ -1,0 +1,1672 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "greencode API publica",
+    "version": "1.0.0",
+    "description": "API para parceiros: rastreabilidade, lotes e relatorios preditivos.\n\nAutenticacao: cabecalho `X-API-Key` (clique em Authorize). Cada chave tem escopos e limite de requisicoes por minuto; ao exceder, a resposta e 429 com `Retry-After`.\n\nVersionamento: a versao esta na URL (`/api/v1/public`). Mudancas incompativeis geram `/api/v2/public`, e a v1 segue ativa durante o periodo de depreciacao.\n\nErros: sempre `{ \"erro\": \"...\", \"mensagem\": \"...\" }` (400, 401, 403, 404, 409, 429)."
+  },
+  "components": {
+    "securitySchemes": {
+      "apiKey": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-API-Key"
+      }
+    },
+    "schemas": {}
+  },
+  "paths": {
+    "/api/v1/public/me": {
+      "get": {
+        "summary": "Identidade, escopos e limite da chave usada",
+        "tags": [
+          "conta"
+        ],
+        "security": [
+          {
+            "apiKey": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Dados da chave.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Dados da chave.",
+                  "type": "object",
+                  "additionalProperties": true,
+                  "example": {
+                    "nome": "Cooperativa Verde",
+                    "organizacaoCnpj": "11222333000181",
+                    "escopos": [
+                      "rastreabilidade:ler"
+                    ],
+                    "limitePorMinuto": 60
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Chave ausente, invalida, expirada ou revogada.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Chave ausente, invalida, expirada ou revogada.",
+                  "type": "object",
+                  "properties": {
+                    "erro": {
+                      "type": "string"
+                    },
+                    "mensagem": {
+                      "type": "string"
+                    }
+                  },
+                  "example": {
+                    "erro": "NaoAutenticado",
+                    "mensagem": "Chave de API ausente, invalida, expirada ou revogada."
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Limite de requisicoes por minuto excedido (veja o cabecalho Retry-After).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Limite de requisicoes por minuto excedido (veja o cabecalho Retry-After).",
+                  "type": "object",
+                  "properties": {
+                    "erro": {
+                      "type": "string"
+                    },
+                    "mensagem": {
+                      "type": "string"
+                    }
+                  },
+                  "example": {
+                    "erro": "LimiteExcedido",
+                    "mensagem": "Limite de 60 requisicoes por minuto excedido. Tente novamente em 12 seconds."
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/public/rastreabilidade/equipamentos/{id}": {
+      "get": {
+        "summary": "Historico de rastreabilidade de um equipamento",
+        "tags": [
+          "rastreabilidade"
+        ],
+        "description": "Devolve o equipamento e todas as movimentacoes (status e estado fisico) em ordem cronologica. O `id` e o codigo de barras.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "description": "Identificador (UUID) do recurso."
+          }
+        ],
+        "security": [
+          {
+            "apiKey": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Equipamento e historico.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Equipamento e historico.",
+                  "type": "object",
+                  "additionalProperties": true,
+                  "example": {
+                    "equipamento": {
+                      "id": "9a3c1d1e-6a0b-4d52-9f55-2c1f0f4f1a11",
+                      "codigoBarras": "9a3c1d1e-6a0b-4d52-9f55-2c1f0f4f1a11",
+                      "loteId": "5f0c7c52-1e63-4f0e-8a7f-0d6d3d4a9e01",
+                      "posicao": 1,
+                      "tipo": "cpu",
+                      "marca": "Dell",
+                      "modelo": "OptiPlex 3080",
+                      "estadoFisico": "regular",
+                      "status": "reciclagem",
+                      "triagemCompleta": true,
+                      "valorRecuperacaoCentavos": 4500,
+                      "criadoEm": "2026-10-01T12:00:00.000Z",
+                      "atualizadoEm": "2026-10-20T15:30:00.000Z"
+                    },
+                    "movimentacoes": [
+                      {
+                        "id": "c1",
+                        "statusDe": "aguardando_triagem",
+                        "statusPara": "em_triagem",
+                        "estadoDe": null,
+                        "estadoPara": null,
+                        "justificativa": null,
+                        "criadoEm": "2026-10-02T09:00:00.000Z"
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Parametros invalidos.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Parametros invalidos.",
+                  "type": "object",
+                  "properties": {
+                    "erro": {
+                      "type": "string"
+                    },
+                    "mensagem": {
+                      "type": "string"
+                    }
+                  },
+                  "example": {
+                    "erro": "ErroValidacao",
+                    "mensagem": "body/nf must NOT have fewer than 1 characters"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Chave ausente, invalida, expirada ou revogada.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Chave ausente, invalida, expirada ou revogada.",
+                  "type": "object",
+                  "properties": {
+                    "erro": {
+                      "type": "string"
+                    },
+                    "mensagem": {
+                      "type": "string"
+                    }
+                  },
+                  "example": {
+                    "erro": "NaoAutenticado",
+                    "mensagem": "Chave de API ausente, invalida, expirada ou revogada."
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "A chave nao possui o escopo exigido.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "A chave nao possui o escopo exigido.",
+                  "type": "object",
+                  "properties": {
+                    "erro": {
+                      "type": "string"
+                    },
+                    "mensagem": {
+                      "type": "string"
+                    }
+                  },
+                  "example": {
+                    "erro": "ErroPermissao",
+                    "mensagem": "Esta chave nao possui o escopo 'lotes:escrever'."
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Recurso inexistente ou de outra organizacao.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Recurso inexistente ou de outra organizacao.",
+                  "type": "object",
+                  "properties": {
+                    "erro": {
+                      "type": "string"
+                    },
+                    "mensagem": {
+                      "type": "string"
+                    }
+                  },
+                  "example": {
+                    "erro": "NaoEncontrado",
+                    "mensagem": "Lote 5f0c... nao encontrado."
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Limite de requisicoes por minuto excedido (veja o cabecalho Retry-After).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Limite de requisicoes por minuto excedido (veja o cabecalho Retry-After).",
+                  "type": "object",
+                  "properties": {
+                    "erro": {
+                      "type": "string"
+                    },
+                    "mensagem": {
+                      "type": "string"
+                    }
+                  },
+                  "example": {
+                    "erro": "LimiteExcedido",
+                    "mensagem": "Limite de 60 requisicoes por minuto excedido. Tente novamente em 12 seconds."
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/public/rastreabilidade/lotes/{id}": {
+      "get": {
+        "summary": "Situacao de um lote e de todos os seus equipamentos",
+        "tags": [
+          "rastreabilidade"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "description": "Identificador (UUID) do recurso."
+          }
+        ],
+        "security": [
+          {
+            "apiKey": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Lote com equipamentos.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Lote com equipamentos.",
+                  "type": "object",
+                  "additionalProperties": true,
+                  "example": {
+                    "id": "5f0c7c52-1e63-4f0e-8a7f-0d6d3d4a9e01",
+                    "nf": "NF-0001",
+                    "transportadora": "TransVerde",
+                    "dataEntrada": "2026-10-01",
+                    "status": "triagem_completa",
+                    "criadoEm": "2026-10-01T12:00:00.000Z",
+                    "triagemConcluidaEm": "2026-10-04T18:10:00.000Z",
+                    "organizacao": {
+                      "cnpj": "11222333000181",
+                      "razaoSocial": "Tech Solutions Ltda"
+                    },
+                    "equipamentos": [
+                      {
+                        "id": "9a3c1d1e-6a0b-4d52-9f55-2c1f0f4f1a11",
+                        "codigoBarras": "9a3c1d1e-6a0b-4d52-9f55-2c1f0f4f1a11",
+                        "loteId": "5f0c7c52-1e63-4f0e-8a7f-0d6d3d4a9e01",
+                        "posicao": 1,
+                        "tipo": "cpu",
+                        "marca": "Dell",
+                        "modelo": "OptiPlex 3080",
+                        "estadoFisico": "regular",
+                        "status": "reciclagem",
+                        "triagemCompleta": true,
+                        "valorRecuperacaoCentavos": 4500,
+                        "criadoEm": "2026-10-01T12:00:00.000Z",
+                        "atualizadoEm": "2026-10-20T15:30:00.000Z"
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Parametros invalidos.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Parametros invalidos.",
+                  "type": "object",
+                  "properties": {
+                    "erro": {
+                      "type": "string"
+                    },
+                    "mensagem": {
+                      "type": "string"
+                    }
+                  },
+                  "example": {
+                    "erro": "ErroValidacao",
+                    "mensagem": "body/nf must NOT have fewer than 1 characters"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Chave ausente, invalida, expirada ou revogada.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Chave ausente, invalida, expirada ou revogada.",
+                  "type": "object",
+                  "properties": {
+                    "erro": {
+                      "type": "string"
+                    },
+                    "mensagem": {
+                      "type": "string"
+                    }
+                  },
+                  "example": {
+                    "erro": "NaoAutenticado",
+                    "mensagem": "Chave de API ausente, invalida, expirada ou revogada."
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "A chave nao possui o escopo exigido.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "A chave nao possui o escopo exigido.",
+                  "type": "object",
+                  "properties": {
+                    "erro": {
+                      "type": "string"
+                    },
+                    "mensagem": {
+                      "type": "string"
+                    }
+                  },
+                  "example": {
+                    "erro": "ErroPermissao",
+                    "mensagem": "Esta chave nao possui o escopo 'lotes:escrever'."
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Recurso inexistente ou de outra organizacao.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Recurso inexistente ou de outra organizacao.",
+                  "type": "object",
+                  "properties": {
+                    "erro": {
+                      "type": "string"
+                    },
+                    "mensagem": {
+                      "type": "string"
+                    }
+                  },
+                  "example": {
+                    "erro": "NaoEncontrado",
+                    "mensagem": "Lote 5f0c... nao encontrado."
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Limite de requisicoes por minuto excedido (veja o cabecalho Retry-After).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Limite de requisicoes por minuto excedido (veja o cabecalho Retry-After).",
+                  "type": "object",
+                  "properties": {
+                    "erro": {
+                      "type": "string"
+                    },
+                    "mensagem": {
+                      "type": "string"
+                    }
+                  },
+                  "example": {
+                    "erro": "LimiteExcedido",
+                    "mensagem": "Limite de 60 requisicoes por minuto excedido. Tente novamente em 12 seconds."
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/public/lotes": {
+      "get": {
+        "summary": "Lista os lotes da sua organizacao",
+        "tags": [
+          "lotes"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 1
+            },
+            "in": "query",
+            "name": "pagina",
+            "required": false,
+            "description": "Numero da pagina (comeca em 1)."
+          },
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20
+            },
+            "in": "query",
+            "name": "tamanhoPagina",
+            "required": false,
+            "description": "Itens por pagina (maximo 100)."
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "recebido",
+                "em_triagem",
+                "triagem_completa",
+                "encerrado"
+              ]
+            },
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "description": "Filtra pelo status do lote."
+          }
+        ],
+        "security": [
+          {
+            "apiKey": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Pagina de lotes.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Pagina de lotes.",
+                  "type": "object",
+                  "additionalProperties": true,
+                  "example": {
+                    "itens": [
+                      {
+                        "id": "5f0c7c52-1e63-4f0e-8a7f-0d6d3d4a9e01",
+                        "nf": "NF-0001",
+                        "transportadora": "TransVerde",
+                        "dataEntrada": "2026-10-01",
+                        "status": "triagem_completa",
+                        "criadoEm": "2026-10-01T12:00:00.000Z",
+                        "triagemConcluidaEm": "2026-10-04T18:10:00.000Z",
+                        "organizacao": {
+                          "cnpj": "11222333000181",
+                          "razaoSocial": "Tech Solutions Ltda"
+                        },
+                        "totalEquipamentos": 5
+                      }
+                    ],
+                    "total": 1,
+                    "pagina": 1,
+                    "tamanhoPagina": 20,
+                    "totalPaginas": 1
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Parametros invalidos.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Parametros invalidos.",
+                  "type": "object",
+                  "properties": {
+                    "erro": {
+                      "type": "string"
+                    },
+                    "mensagem": {
+                      "type": "string"
+                    }
+                  },
+                  "example": {
+                    "erro": "ErroValidacao",
+                    "mensagem": "body/nf must NOT have fewer than 1 characters"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Chave ausente, invalida, expirada ou revogada.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Chave ausente, invalida, expirada ou revogada.",
+                  "type": "object",
+                  "properties": {
+                    "erro": {
+                      "type": "string"
+                    },
+                    "mensagem": {
+                      "type": "string"
+                    }
+                  },
+                  "example": {
+                    "erro": "NaoAutenticado",
+                    "mensagem": "Chave de API ausente, invalida, expirada ou revogada."
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "A chave nao possui o escopo exigido.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "A chave nao possui o escopo exigido.",
+                  "type": "object",
+                  "properties": {
+                    "erro": {
+                      "type": "string"
+                    },
+                    "mensagem": {
+                      "type": "string"
+                    }
+                  },
+                  "example": {
+                    "erro": "ErroPermissao",
+                    "mensagem": "Esta chave nao possui o escopo 'lotes:escrever'."
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Limite de requisicoes por minuto excedido (veja o cabecalho Retry-After).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Limite de requisicoes por minuto excedido (veja o cabecalho Retry-After).",
+                  "type": "object",
+                  "properties": {
+                    "erro": {
+                      "type": "string"
+                    },
+                    "mensagem": {
+                      "type": "string"
+                    }
+                  },
+                  "example": {
+                    "erro": "LimiteExcedido",
+                    "mensagem": "Limite de 60 requisicoes por minuto excedido. Tente novamente em 12 seconds."
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Cria um lote (e seus equipamentos) na sua organizacao",
+        "tags": [
+          "lotes"
+        ],
+        "description": "Atomico: ou o lote nasce completo, ou nada e gravado. A organizacao e sempre a da chave. Exige contrato ativo. `dataEntrada` (YYYY-MM-DD) nao pode ser futura nem ter mais de 90 dias.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "nf",
+                  "transportadora"
+                ],
+                "additionalProperties": false,
+                "properties": {
+                  "nf": {
+                    "type": "string",
+                    "pattern": "\\S",
+                    "description": "Nota fiscal (unica por organizacao)."
+                  },
+                  "transportadora": {
+                    "type": "string",
+                    "pattern": "\\S",
+                    "description": "Nome da transportadora (nao pode ser vazio)."
+                  },
+                  "dataEntrada": {
+                    "type": "string",
+                    "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                    "description": "Data de entrada AAAA-MM-DD (padrao: hoje; nao pode ser futura nem ter mais de 90 dias)."
+                  },
+                  "equipamentos": {
+                    "type": "array",
+                    "maxItems": 500,
+                    "description": "Equipamentos do lote (ate 500); criados junto com o lote, de forma atomica.",
+                    "items": {
+                      "type": "object",
+                      "required": [
+                        "tipo"
+                      ],
+                      "additionalProperties": false,
+                      "properties": {
+                        "tipo": {
+                          "type": "string",
+                          "pattern": "\\S",
+                          "description": "Ex.: Terminal, CPU, Monitor, Servidor ou qualquer outro."
+                        },
+                        "marca": {
+                          "type": "string",
+                          "maxLength": 80
+                        },
+                        "modelo": {
+                          "type": "string",
+                          "maxLength": 80
+                        }
+                      }
+                    }
+                  }
+                }
+              },
+              "example": {
+                "nf": "NF-0099",
+                "transportadora": "TransVerde",
+                "dataEntrada": "2026-11-10",
+                "equipamentos": [
+                  {
+                    "tipo": "CPU",
+                    "marca": "Dell",
+                    "modelo": "OptiPlex 3080"
+                  },
+                  {
+                    "tipo": "Monitor"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "apiKey": []
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Lote criado.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Lote criado.",
+                  "type": "object",
+                  "additionalProperties": true,
+                  "example": {
+                    "id": "5f0c7c52-1e63-4f0e-8a7f-0d6d3d4a9e01",
+                    "nf": "NF-0001",
+                    "transportadora": "TransVerde",
+                    "dataEntrada": "2026-10-01",
+                    "status": "recebido",
+                    "criadoEm": "2026-10-01T12:00:00.000Z",
+                    "triagemConcluidaEm": null,
+                    "organizacao": {
+                      "cnpj": "11222333000181",
+                      "razaoSocial": "Tech Solutions Ltda"
+                    },
+                    "equipamentos": [
+                      {
+                        "id": "9a3c1d1e-6a0b-4d52-9f55-2c1f0f4f1a11",
+                        "codigoBarras": "9a3c1d1e-6a0b-4d52-9f55-2c1f0f4f1a11",
+                        "loteId": "5f0c7c52-1e63-4f0e-8a7f-0d6d3d4a9e01",
+                        "posicao": 1,
+                        "tipo": "cpu",
+                        "marca": "Dell",
+                        "modelo": "OptiPlex 3080",
+                        "estadoFisico": "regular",
+                        "status": "reciclagem",
+                        "triagemCompleta": true,
+                        "valorRecuperacaoCentavos": 4500,
+                        "criadoEm": "2026-10-01T12:00:00.000Z",
+                        "atualizadoEm": "2026-10-20T15:30:00.000Z"
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Parametros invalidos.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Parametros invalidos.",
+                  "type": "object",
+                  "properties": {
+                    "erro": {
+                      "type": "string"
+                    },
+                    "mensagem": {
+                      "type": "string"
+                    }
+                  },
+                  "example": {
+                    "erro": "ErroValidacao",
+                    "mensagem": "body/nf must NOT have fewer than 1 characters"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Chave ausente, invalida, expirada ou revogada.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Chave ausente, invalida, expirada ou revogada.",
+                  "type": "object",
+                  "properties": {
+                    "erro": {
+                      "type": "string"
+                    },
+                    "mensagem": {
+                      "type": "string"
+                    }
+                  },
+                  "example": {
+                    "erro": "NaoAutenticado",
+                    "mensagem": "Chave de API ausente, invalida, expirada ou revogada."
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "A chave nao possui o escopo exigido.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "A chave nao possui o escopo exigido.",
+                  "type": "object",
+                  "properties": {
+                    "erro": {
+                      "type": "string"
+                    },
+                    "mensagem": {
+                      "type": "string"
+                    }
+                  },
+                  "example": {
+                    "erro": "ErroPermissao",
+                    "mensagem": "Esta chave nao possui o escopo 'lotes:escrever'."
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Recurso inexistente ou de outra organizacao.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Recurso inexistente ou de outra organizacao.",
+                  "type": "object",
+                  "properties": {
+                    "erro": {
+                      "type": "string"
+                    },
+                    "mensagem": {
+                      "type": "string"
+                    }
+                  },
+                  "example": {
+                    "erro": "NaoEncontrado",
+                    "mensagem": "Lote 5f0c... nao encontrado."
+                  }
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflito de estado (duplicidade, relatorio ainda nao pronto...).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Conflito de estado (duplicidade, relatorio ainda nao pronto...).",
+                  "type": "object",
+                  "properties": {
+                    "erro": {
+                      "type": "string"
+                    },
+                    "mensagem": {
+                      "type": "string"
+                    }
+                  },
+                  "example": {
+                    "erro": "Conflito",
+                    "mensagem": "O relatorio ainda nao esta pronto (status: processando). Consulte o status e tente novamente."
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Limite de requisicoes por minuto excedido (veja o cabecalho Retry-After).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Limite de requisicoes por minuto excedido (veja o cabecalho Retry-After).",
+                  "type": "object",
+                  "properties": {
+                    "erro": {
+                      "type": "string"
+                    },
+                    "mensagem": {
+                      "type": "string"
+                    }
+                  },
+                  "example": {
+                    "erro": "LimiteExcedido",
+                    "mensagem": "Limite de 60 requisicoes por minuto excedido. Tente novamente em 12 seconds."
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/public/lotes/{id}": {
+      "get": {
+        "summary": "Detalha um lote da sua organizacao",
+        "tags": [
+          "lotes"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "description": "Identificador (UUID) do recurso."
+          }
+        ],
+        "security": [
+          {
+            "apiKey": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Lote com equipamentos.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Lote com equipamentos.",
+                  "type": "object",
+                  "additionalProperties": true,
+                  "example": {
+                    "id": "5f0c7c52-1e63-4f0e-8a7f-0d6d3d4a9e01",
+                    "nf": "NF-0001",
+                    "transportadora": "TransVerde",
+                    "dataEntrada": "2026-10-01",
+                    "status": "triagem_completa",
+                    "criadoEm": "2026-10-01T12:00:00.000Z",
+                    "triagemConcluidaEm": "2026-10-04T18:10:00.000Z",
+                    "organizacao": {
+                      "cnpj": "11222333000181",
+                      "razaoSocial": "Tech Solutions Ltda"
+                    },
+                    "equipamentos": [
+                      {
+                        "id": "9a3c1d1e-6a0b-4d52-9f55-2c1f0f4f1a11",
+                        "codigoBarras": "9a3c1d1e-6a0b-4d52-9f55-2c1f0f4f1a11",
+                        "loteId": "5f0c7c52-1e63-4f0e-8a7f-0d6d3d4a9e01",
+                        "posicao": 1,
+                        "tipo": "cpu",
+                        "marca": "Dell",
+                        "modelo": "OptiPlex 3080",
+                        "estadoFisico": "regular",
+                        "status": "reciclagem",
+                        "triagemCompleta": true,
+                        "valorRecuperacaoCentavos": 4500,
+                        "criadoEm": "2026-10-01T12:00:00.000Z",
+                        "atualizadoEm": "2026-10-20T15:30:00.000Z"
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Parametros invalidos.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Parametros invalidos.",
+                  "type": "object",
+                  "properties": {
+                    "erro": {
+                      "type": "string"
+                    },
+                    "mensagem": {
+                      "type": "string"
+                    }
+                  },
+                  "example": {
+                    "erro": "ErroValidacao",
+                    "mensagem": "body/nf must NOT have fewer than 1 characters"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Chave ausente, invalida, expirada ou revogada.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Chave ausente, invalida, expirada ou revogada.",
+                  "type": "object",
+                  "properties": {
+                    "erro": {
+                      "type": "string"
+                    },
+                    "mensagem": {
+                      "type": "string"
+                    }
+                  },
+                  "example": {
+                    "erro": "NaoAutenticado",
+                    "mensagem": "Chave de API ausente, invalida, expirada ou revogada."
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "A chave nao possui o escopo exigido.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "A chave nao possui o escopo exigido.",
+                  "type": "object",
+                  "properties": {
+                    "erro": {
+                      "type": "string"
+                    },
+                    "mensagem": {
+                      "type": "string"
+                    }
+                  },
+                  "example": {
+                    "erro": "ErroPermissao",
+                    "mensagem": "Esta chave nao possui o escopo 'lotes:escrever'."
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Recurso inexistente ou de outra organizacao.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Recurso inexistente ou de outra organizacao.",
+                  "type": "object",
+                  "properties": {
+                    "erro": {
+                      "type": "string"
+                    },
+                    "mensagem": {
+                      "type": "string"
+                    }
+                  },
+                  "example": {
+                    "erro": "NaoEncontrado",
+                    "mensagem": "Lote 5f0c... nao encontrado."
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Limite de requisicoes por minuto excedido (veja o cabecalho Retry-After).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Limite de requisicoes por minuto excedido (veja o cabecalho Retry-After).",
+                  "type": "object",
+                  "properties": {
+                    "erro": {
+                      "type": "string"
+                    },
+                    "mensagem": {
+                      "type": "string"
+                    }
+                  },
+                  "example": {
+                    "erro": "LimiteExcedido",
+                    "mensagem": "Limite de 60 requisicoes por minuto excedido. Tente novamente em 12 seconds."
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/public/relatorios/preditivo": {
+      "post": {
+        "summary": "Solicita o relatorio preditivo de todos os seus equipamentos (assincrono)",
+        "tags": [
+          "relatorios"
+        ],
+        "description": "Responde 202 na hora com o `tarefaId`. Acompanhe por polling em `GET /tarefas/{id}` ou informe `webhookUrl` (recebe um POST assinado com HMAC-SHA256 no cabecalho `X-Greencode-Signature`). Quando `concluida`, baixe em `GET /tarefas/{id}/resultado` (json ou csv).",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "webhookUrl": {
+                    "type": "string",
+                    "maxLength": 500,
+                    "description": "URL http(s) publica (nao pode apontar para rede privada)."
+                  }
+                },
+                "nullable": true
+              },
+              "example": {
+                "webhookUrl": "https://parceiro.example/hooks/greencode"
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "apiKey": []
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Tarefa aceita.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Tarefa aceita.",
+                  "type": "object",
+                  "additionalProperties": true,
+                  "example": {
+                    "tarefaId": "0b9e6a3a-3d36-4f0f-8d0e-1a6a3d4a9e02",
+                    "status": "pendente",
+                    "statusUrl": "/api/v1/public/tarefas/0b9e6a3a-...",
+                    "resultadoUrl": "/api/v1/public/tarefas/0b9e6a3a-.../resultado"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Parametros invalidos.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Parametros invalidos.",
+                  "type": "object",
+                  "properties": {
+                    "erro": {
+                      "type": "string"
+                    },
+                    "mensagem": {
+                      "type": "string"
+                    }
+                  },
+                  "example": {
+                    "erro": "ErroValidacao",
+                    "mensagem": "body/nf must NOT have fewer than 1 characters"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Chave ausente, invalida, expirada ou revogada.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Chave ausente, invalida, expirada ou revogada.",
+                  "type": "object",
+                  "properties": {
+                    "erro": {
+                      "type": "string"
+                    },
+                    "mensagem": {
+                      "type": "string"
+                    }
+                  },
+                  "example": {
+                    "erro": "NaoAutenticado",
+                    "mensagem": "Chave de API ausente, invalida, expirada ou revogada."
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "A chave nao possui o escopo exigido.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "A chave nao possui o escopo exigido.",
+                  "type": "object",
+                  "properties": {
+                    "erro": {
+                      "type": "string"
+                    },
+                    "mensagem": {
+                      "type": "string"
+                    }
+                  },
+                  "example": {
+                    "erro": "ErroPermissao",
+                    "mensagem": "Esta chave nao possui o escopo 'lotes:escrever'."
+                  }
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflito de estado (duplicidade, relatorio ainda nao pronto...).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Conflito de estado (duplicidade, relatorio ainda nao pronto...).",
+                  "type": "object",
+                  "properties": {
+                    "erro": {
+                      "type": "string"
+                    },
+                    "mensagem": {
+                      "type": "string"
+                    }
+                  },
+                  "example": {
+                    "erro": "Conflito",
+                    "mensagem": "O relatorio ainda nao esta pronto (status: processando). Consulte o status e tente novamente."
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Limite de requisicoes por minuto excedido (veja o cabecalho Retry-After).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Limite de requisicoes por minuto excedido (veja o cabecalho Retry-After).",
+                  "type": "object",
+                  "properties": {
+                    "erro": {
+                      "type": "string"
+                    },
+                    "mensagem": {
+                      "type": "string"
+                    }
+                  },
+                  "example": {
+                    "erro": "LimiteExcedido",
+                    "mensagem": "Limite de 60 requisicoes por minuto excedido. Tente novamente em 12 seconds."
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/public/tarefas/{id}": {
+      "get": {
+        "summary": "Status da tarefa (polling)",
+        "tags": [
+          "relatorios"
+        ],
+        "description": "status: pendente -> processando -> concluida | falha. Falhas transitorias sao repetidas automaticamente (ate `maxTentativas`, com espera crescente).",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "description": "Identificador (UUID) do recurso."
+          }
+        ],
+        "security": [
+          {
+            "apiKey": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Status.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Status.",
+                  "type": "object",
+                  "additionalProperties": true,
+                  "example": {
+                    "id": "0b9e6a3a-3d36-4f0f-8d0e-1a6a3d4a9e02",
+                    "tipo": "relatorio_preditivo",
+                    "status": "concluida",
+                    "tentativas": 1,
+                    "maxTentativas": 3,
+                    "criadoEm": "2026-11-10T10:00:00.000Z",
+                    "iniciadoEm": "2026-11-10T10:00:02.000Z",
+                    "concluidoEm": "2026-11-10T10:00:05.000Z",
+                    "erro": null,
+                    "webhookStatus": null,
+                    "resultadoUrl": "/api/v1/public/tarefas/0b9e6a3a-.../resultado"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Parametros invalidos.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Parametros invalidos.",
+                  "type": "object",
+                  "properties": {
+                    "erro": {
+                      "type": "string"
+                    },
+                    "mensagem": {
+                      "type": "string"
+                    }
+                  },
+                  "example": {
+                    "erro": "ErroValidacao",
+                    "mensagem": "body/nf must NOT have fewer than 1 characters"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Chave ausente, invalida, expirada ou revogada.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Chave ausente, invalida, expirada ou revogada.",
+                  "type": "object",
+                  "properties": {
+                    "erro": {
+                      "type": "string"
+                    },
+                    "mensagem": {
+                      "type": "string"
+                    }
+                  },
+                  "example": {
+                    "erro": "NaoAutenticado",
+                    "mensagem": "Chave de API ausente, invalida, expirada ou revogada."
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "A chave nao possui o escopo exigido.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "A chave nao possui o escopo exigido.",
+                  "type": "object",
+                  "properties": {
+                    "erro": {
+                      "type": "string"
+                    },
+                    "mensagem": {
+                      "type": "string"
+                    }
+                  },
+                  "example": {
+                    "erro": "ErroPermissao",
+                    "mensagem": "Esta chave nao possui o escopo 'lotes:escrever'."
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Recurso inexistente ou de outra organizacao.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Recurso inexistente ou de outra organizacao.",
+                  "type": "object",
+                  "properties": {
+                    "erro": {
+                      "type": "string"
+                    },
+                    "mensagem": {
+                      "type": "string"
+                    }
+                  },
+                  "example": {
+                    "erro": "NaoEncontrado",
+                    "mensagem": "Lote 5f0c... nao encontrado."
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Limite de requisicoes por minuto excedido (veja o cabecalho Retry-After).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Limite de requisicoes por minuto excedido (veja o cabecalho Retry-After).",
+                  "type": "object",
+                  "properties": {
+                    "erro": {
+                      "type": "string"
+                    },
+                    "mensagem": {
+                      "type": "string"
+                    }
+                  },
+                  "example": {
+                    "erro": "LimiteExcedido",
+                    "mensagem": "Limite de 60 requisicoes por minuto excedido. Tente novamente em 12 seconds."
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/public/tarefas/{id}/resultado": {
+      "get": {
+        "summary": "Baixa o relatorio pronto (JSON ou CSV)",
+        "tags": [
+          "relatorios"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "json",
+                "csv"
+              ],
+              "default": "json"
+            },
+            "in": "query",
+            "name": "formato",
+            "required": false,
+            "description": "Formato do relatorio: json (padrao) ou csv (arquivo text/csv)."
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "description": "Identificador (UUID) do recurso."
+          }
+        ],
+        "security": [
+          {
+            "apiKey": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Relatorio (json) ou arquivo text/csv.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Relatorio (json) ou arquivo text/csv.",
+                  "type": "object",
+                  "additionalProperties": true,
+                  "example": {
+                    "geradoEm": "2026-11-10T10:00:05.000Z",
+                    "resumo": {
+                      "equipamentos": 5,
+                      "comPrevisaoDeVidaUtil": 3,
+                      "valorRecuperadoTotalCentavos": 4500,
+                      "valorEstimadoTotalCentavos": 12000
+                    },
+                    "equipamentos": [
+                      {
+                        "equipamentoId": "9a3c...",
+                        "tipo": "cpu",
+                        "vidaRestanteDias": 412.5,
+                        "valorEstimadoCentavos": 4300,
+                        "fonteValorEstimado": "tipo_estado"
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Parametros invalidos.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Parametros invalidos.",
+                  "type": "object",
+                  "properties": {
+                    "erro": {
+                      "type": "string"
+                    },
+                    "mensagem": {
+                      "type": "string"
+                    }
+                  },
+                  "example": {
+                    "erro": "ErroValidacao",
+                    "mensagem": "body/nf must NOT have fewer than 1 characters"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Chave ausente, invalida, expirada ou revogada.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Chave ausente, invalida, expirada ou revogada.",
+                  "type": "object",
+                  "properties": {
+                    "erro": {
+                      "type": "string"
+                    },
+                    "mensagem": {
+                      "type": "string"
+                    }
+                  },
+                  "example": {
+                    "erro": "NaoAutenticado",
+                    "mensagem": "Chave de API ausente, invalida, expirada ou revogada."
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "A chave nao possui o escopo exigido.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "A chave nao possui o escopo exigido.",
+                  "type": "object",
+                  "properties": {
+                    "erro": {
+                      "type": "string"
+                    },
+                    "mensagem": {
+                      "type": "string"
+                    }
+                  },
+                  "example": {
+                    "erro": "ErroPermissao",
+                    "mensagem": "Esta chave nao possui o escopo 'lotes:escrever'."
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Recurso inexistente ou de outra organizacao.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Recurso inexistente ou de outra organizacao.",
+                  "type": "object",
+                  "properties": {
+                    "erro": {
+                      "type": "string"
+                    },
+                    "mensagem": {
+                      "type": "string"
+                    }
+                  },
+                  "example": {
+                    "erro": "NaoEncontrado",
+                    "mensagem": "Lote 5f0c... nao encontrado."
+                  }
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflito de estado (duplicidade, relatorio ainda nao pronto...).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Conflito de estado (duplicidade, relatorio ainda nao pronto...).",
+                  "type": "object",
+                  "properties": {
+                    "erro": {
+                      "type": "string"
+                    },
+                    "mensagem": {
+                      "type": "string"
+                    }
+                  },
+                  "example": {
+                    "erro": "Conflito",
+                    "mensagem": "O relatorio ainda nao esta pronto (status: processando). Consulte o status e tente novamente."
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Limite de requisicoes por minuto excedido (veja o cabecalho Retry-After).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Limite de requisicoes por minuto excedido (veja o cabecalho Retry-After).",
+                  "type": "object",
+                  "properties": {
+                    "erro": {
+                      "type": "string"
+                    },
+                    "mensagem": {
+                      "type": "string"
+                    }
+                  },
+                  "example": {
+                    "erro": "LimiteExcedido",
+                    "mensagem": "Limite de 60 requisicoes por minuto excedido. Tente novamente em 12 seconds."
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "servers": [
+    {
+      "url": "/"
+    }
+  ],
+  "tags": [
+    {
+      "name": "conta",
+      "description": "Sobre a chave em uso"
+    },
+    {
+      "name": "rastreabilidade",
+      "description": "escopo rastreabilidade:ler"
+    },
+    {
+      "name": "lotes",
+      "description": "escopos lotes:ler / lotes:escrever"
+    },
+    {
+      "name": "relatorios",
+      "description": "escopo relatorios:gerar (processamento assincrono)"
+    }
+  ]
+}

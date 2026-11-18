@@ -1,0 +1,324 @@
+// spiderman
+// Modelo de dados do greencode (API). Replica o modelo de dominio do CLI:
+// Organizacao 1-0..1 Contrato, Organizacao 1-N Lote, Lote 1-N Equipamento,
+// Equipamento 1-N Movimentacao. A URL do banco NAO fica aqui (Prisma 7):
+// ela e lida por prisma.config.ts (migracoes) e por src/server/db/prisma.ts (runtime).
+
+generator client {
+  provider     = "prisma-client"
+  output       = "../src/server/generated/prisma"
+  moduleFormat = "cjs"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Papel {
+  admin
+  cadastro
+  almoxarifado
+  auditor
+}
+
+enum StatusLote {
+  recebido
+  em_triagem
+  triagem_completa
+  encerrado
+}
+
+enum StatusEquipamento {
+  aguardando_triagem
+  em_triagem
+  triado
+  desmonte
+  reciclagem
+  descarte_seguro
+  revenda
+}
+
+enum StatusTarefa {
+  pendente
+  processando
+  concluida
+  falha
+}
+
+enum TipoAnalise {
+  eficiencia_operacional
+  rentabilidade
+  vida_util
+}
+
+enum OrigemAnalise {
+  manual
+  agendada
+  tarefa
+}
+
+enum EstadoFisico {
+  novo
+  seminovo
+  bom
+  regular
+  ruim
+  sucata
+}
+
+// Contas de acesso. `versao` implementa o versionamento otimista (ver README).
+model Usuario {
+  id           String   @id @default(uuid()) @db.Uuid
+  username     String   @unique
+  senhaHash    String
+  papel        Papel
+  ativo        Boolean  @default(true)
+  versao       Int      @default(1)
+  criadoEm     DateTime @default(now()) @db.Timestamptz(3)
+  atualizadoEm DateTime @default(now()) @updatedAt @db.Timestamptz(3)
+
+  lotes         Lote[]            @relation("LoteCriadoPor")
+  lotesTriados  Lote[]            @relation("LoteTriagemPor")
+  movimentacoes Movimentacao[]
+  auditorias    Auditoria[]
+  chavesApi     ChaveApi[]
+  analises      AnaliseExecucao[]
+}
+
+model Organizacao {
+  id           String    @id @default(uuid()) @db.Uuid
+  cnpj         String    @unique
+  razaoSocial  String
+  contato      String?
+  // Soft delete: organizacao inativa some das listagens e nao recebe novos lotes/contratos.
+  ativo        Boolean   @default(true)
+  inativadoEm  DateTime? @db.Timestamptz(3)
+  versao       Int       @default(1)
+  criadoEm     DateTime  @default(now()) @db.Timestamptz(3)
+  atualizadoEm DateTime  @default(now()) @updatedAt @db.Timestamptz(3)
+
+  contrato  Contrato?
+  lotes     Lote[]
+  chavesApi ChaveApi[]
+  tarefas   TarefaAssincrona[]
+}
+
+// Um contrato por organizacao (relacao 1-0..1 garantida pelo @unique em organizacaoId).
+model Contrato {
+  id                   String   @id @default(uuid()) @db.Uuid
+  organizacaoId        String   @unique @db.Uuid
+  dataInicio           DateTime @db.Date
+  frequenciaColetaDias Int
+  condicoes            String?
+  clausulas            Json?
+  ativo                Boolean  @default(true)
+  versao               Int      @default(1)
+  criadoEm             DateTime @default(now()) @db.Timestamptz(3)
+  atualizadoEm         DateTime @default(now()) @updatedAt @db.Timestamptz(3)
+
+  // Delete definitivo da organizacao remove o contrato em cadeia.
+  organizacao Organizacao @relation(fields: [organizacaoId], references: [id], onDelete: Cascade)
+}
+
+model Lote {
+  id                    String     @id @default(uuid()) @db.Uuid
+  organizacaoId         String     @db.Uuid
+  nf                    String
+  transportadora        String
+  dataEntrada           DateTime   @db.Date
+  status                StatusLote @default(recebido)
+  criadoPorId           String     @db.Uuid
+  // AV3: quando (e por quem) a triagem do lote foi concluida. Alimenta a analise de eficiencia operacional.
+  triagemConcluidaEm    DateTime?  @db.Timestamptz(3)
+  triagemConcluidaPorId String?    @db.Uuid
+  // Soft delete (em cadeia com a organizacao). O status do lote e DERIVADO dos equipamentos.
+  ativo                 Boolean    @default(true)
+  inativadoEm           DateTime?  @db.Timestamptz(3)
+  versao                Int        @default(1)
+  criadoEm              DateTime   @default(now()) @db.Timestamptz(3)
+  atualizadoEm          DateTime   @default(now()) @updatedAt @db.Timestamptz(3)
+
+  organizacao  Organizacao   @relation(fields: [organizacaoId], references: [id], onDelete: Cascade)
+  criadoPor    Usuario       @relation("LoteCriadoPor", fields: [criadoPorId], references: [id], onDelete: Restrict)
+  triagemPor   Usuario?      @relation("LoteTriagemPor", fields: [triagemConcluidaPorId], references: [id], onDelete: SetNull)
+  equipamentos Equipamento[]
+
+  @@unique([organizacaoId, nf])
+  @@index([organizacaoId])
+  @@index([status])
+  @@index([triagemConcluidaEm])
+}
+
+model Equipamento {
+  id                       String            @id @default(uuid()) @db.Uuid
+  loteId                   String            @db.Uuid
+  // O codigo de barras e o proprio id (garantido por CHECK no banco); a coluna existe para a restricao de unicidade explicita.
+  codigoBarrasInterno      String            @unique
+  // Posicao automatica dentro do lote (1, 2, 3...), como o indice de um array.
+  posicao                  Int
+  tipo                     String
+  estadoFisico             EstadoFisico      @default(novo)
+  status                   StatusEquipamento @default(aguardando_triagem)
+  triagemCompleta          Boolean           @default(false)
+  // AV3: dados para a analise de rentabilidade. O valor e o recuperado de fato (centavos), registrado no destino final.
+  marca                    String?
+  modelo                   String?
+  valorRecuperacaoCentavos Int?
+  versao                   Int               @default(1)
+  criadoEm                 DateTime          @default(now()) @db.Timestamptz(3)
+  atualizadoEm             DateTime          @default(now()) @updatedAt @db.Timestamptz(3)
+
+  lote          Lote           @relation(fields: [loteId], references: [id], onDelete: Cascade)
+  movimentacoes Movimentacao[]
+
+  @@unique([loteId, posicao])
+  @@index([loteId])
+  @@index([status])
+}
+
+// Historico imutavel de mudancas de status/estado fisico (rastreabilidade).
+model Movimentacao {
+  id            String             @id @default(uuid()) @db.Uuid
+  equipamentoId String             @db.Uuid
+  usuarioId     String             @db.Uuid
+  statusDe      StatusEquipamento?
+  statusPara    StatusEquipamento?
+  estadoDe      EstadoFisico?
+  estadoPara    EstadoFisico?
+  justificativa String?
+  criadoEm      DateTime           @default(now()) @db.Timestamptz(3)
+
+  equipamento Equipamento @relation(fields: [equipamentoId], references: [id], onDelete: Cascade)
+  usuario     Usuario     @relation(fields: [usuarioId], references: [id], onDelete: Restrict)
+
+  @@index([equipamentoId, criadoEm])
+}
+
+// Equivalente ao journal do CLI: trilha de auditoria gravada na MESMA
+// transacao da operacao (ou ambos persistem, ou nenhum).
+model Auditoria {
+  id        BigInt   @id @default(autoincrement())
+  usuarioId String?  @db.Uuid
+  acao      String
+  detalhes  Json?
+  criadoEm  DateTime @default(now()) @db.Timestamptz(3)
+
+  usuario Usuario? @relation(fields: [usuarioId], references: [id], onDelete: SetNull)
+
+  @@index([criadoEm])
+  @@index([acao])
+}
+
+// Parametros globais do sistema (equivalente ao arquivo parametros.dat do CLI): pares chave/valor geridos pelo admin.
+model ParametroGlobal {
+  chave        String   @id
+  valor        String
+  versao       Int      @default(1)
+  atualizadoEm DateTime @default(now()) @updatedAt @db.Timestamptz(3)
+}
+
+// ---------------- AV3: API publica (chaves), filas e camada analitica ----------------
+
+// Chave de API de um parceiro externo (uma por parceiro/contrato). O segredo NUNCA e guardado:
+// so o SHA-256 dele. O `prefixo` (parte publica da chave) permite achar a linha sem varrer a tabela.
+model ChaveApi {
+  id              String    @id @default(uuid()) @db.Uuid
+  nome            String
+  prefixo         String    @unique
+  hashSegredo     String
+  organizacaoId   String    @db.Uuid
+  escopos         String[]
+  limitePorMinuto Int       @default(60)
+  // Segredo compartilhado para assinar (HMAC) os webhooks enviados a este parceiro.
+  segredoWebhook  String
+  ativa           Boolean   @default(true)
+  expiraEm        DateTime? @db.Timestamptz(3)
+  revogadaEm      DateTime? @db.Timestamptz(3)
+  ultimoUsoEm     DateTime? @db.Timestamptz(3)
+  criadaPorId     String    @db.Uuid
+  criadoEm        DateTime  @default(now()) @db.Timestamptz(3)
+
+  organizacao Organizacao        @relation(fields: [organizacaoId], references: [id], onDelete: Cascade)
+  criadaPor   Usuario            @relation(fields: [criadaPorId], references: [id], onDelete: Restrict)
+  tarefas     TarefaAssincrona[]
+
+  @@index([organizacaoId])
+}
+
+// Fila de tarefas assincronas (relatorios preditivos, analises agendadas). Fica no PostgreSQL:
+// o worker reivindica linhas com FOR UPDATE SKIP LOCKED (ver README, secao "Fila").
+model TarefaAssincrona {
+  id                String       @id @default(uuid()) @db.Uuid
+  tipo              String
+  parametros        Json         @default("{}")
+  status            StatusTarefa @default(pendente)
+  tentativas        Int          @default(0)
+  maxTentativas     Int          @default(3)
+  proximaExecucaoEm DateTime     @default(now()) @db.Timestamptz(3)
+  // Lease: enquanto "processando", ninguem mais pega a tarefa ate esta hora (recupera worker morto).
+  bloqueadaAte      DateTime?    @db.Timestamptz(3)
+  ultimoErro        String?
+  resultado         Json?
+  // Evita duplicar tarefas recorrentes quando ha varias instancias (INSERT ... ON CONFLICT DO NOTHING).
+  chaveUnica        String?      @unique
+  webhookUrl        String?
+  webhookStatus     String?
+  organizacaoId     String?      @db.Uuid
+  chaveApiId        String?      @db.Uuid
+  criadoEm          DateTime     @default(now()) @db.Timestamptz(3)
+  iniciadoEm        DateTime?    @db.Timestamptz(3)
+  concluidoEm       DateTime?    @db.Timestamptz(3)
+
+  organizacao Organizacao? @relation(fields: [organizacaoId], references: [id], onDelete: Cascade)
+  chaveApi    ChaveApi?    @relation(fields: [chaveApiId], references: [id], onDelete: SetNull)
+
+  @@index([status, proximaExecucaoEm])
+  @@index([chaveApiId])
+}
+
+// Relatorio analitico gerado (historico imutavel: cada execucao e uma linha nova).
+model AnaliseExecucao {
+  id          String        @id @default(uuid()) @db.Uuid
+  tipo        TipoAnalise
+  origem      OrigemAnalise
+  parametros  Json          @default("{}")
+  resultado   Json
+  amostra     Int
+  duracaoMs   Int
+  geradaEm    DateTime      @default(now()) @db.Timestamptz(3)
+  geradaPorId String?       @db.Uuid
+
+  geradaPor Usuario?           @relation(fields: [geradaPorId], references: [id], onDelete: SetNull)
+  previsoes PrevisaoVidaUtil[]
+
+  @@index([tipo, geradaEm])
+}
+
+// Uma previsao de vida util por tipo de equipamento. Depois, quando equipamentos do tipo chegam
+// de fato a "sucata", o servico preenche os campos "real" e o erro: base da comparacao e do refino.
+model PrevisaoVidaUtil {
+  id                    String    @id @default(uuid()) @db.Uuid
+  execucaoId            String    @db.Uuid
+  tipoEquipamento       String
+  modelo                String    @default("ols")
+  inclinacao            Float
+  intercepto            Float
+  r2                    Float
+  amostra               Int
+  // Vida total (dias, da entrada ate "sucata"): bruta = regressao; prevista = bruta + ajuste de calibracao.
+  vidaTotalBrutaDias    Float
+  ajusteDias            Float     @default(0)
+  vidaTotalPrevistaDias Float
+  vidaRestanteMediaDias Float
+  equipamentosAtivos    Int
+  geradaEm              DateTime  @default(now()) @db.Timestamptz(3)
+  avaliadaEm            DateTime? @db.Timestamptz(3)
+  vidaTotalRealDias     Float?
+  erroDias              Float?
+  falhasObservadas      Int?
+
+  execucao AnaliseExecucao @relation(fields: [execucaoId], references: [id], onDelete: Cascade)
+
+  @@index([tipoEquipamento, geradaEm])
+  @@index([avaliadaEm])
+}
